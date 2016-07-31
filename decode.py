@@ -1,8 +1,4 @@
-from pyquery import PyQuery as pyq
+from bs4 import BeautifulSoup as bs
 
-with open('test.txt','r',encoding='utf-8') as f:
-    docs = f.read()
-    res = pyq(docs)
-    table = pyq(res('#gsc_a_b'))
-    for i in table.find('tr').text():
-        print()
+with open('xue.txt', 'r', encoding='utf-8') as f:
+    doc = bs(f.read())
