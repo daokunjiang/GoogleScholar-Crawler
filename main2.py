@@ -2,18 +2,57 @@
 
 from selenium import webdriver
 from bs4 import BeautifulSoup as bs
-from openpyxl import Workbook
+from openpyxl import load_workbook as ldwb
+import re
 
-def paper_name_too_long(arg):
-    arg_list = arg.split(',')
-    for x in arg_list:
-        x = x.strip()
-        if x == '...':
-            return True
-    return False
+def name_too_long(arg):
+
+    # input may be None
+    if not arg:
+        return False
+
+    try:
+        t = re.findall('\.\.\.',arg)
+    except TypeError as e:
+        print(e)
+        print(arg)
+        print(str(arg))
+
+    if len(t) == 0:
+        return False
+
+    print(arg)
+    return True
+
+def is_author_column(tag):
+    return (tag.string == '作者' or tag.string == '发明者') and tag.has_attr('class') and (tag.get('class') == ['gsc_field'])
+
+def is_magazine_column(tag):
+    return (tag.string == '期刊' or tag.string == '研讨会论文') and tag.has_attr('class') and (tag.get('class') == ['gsc_field'])
+
+def get_author_child(source):
+    doc = bs(source, "lxml")
+    x = doc.find(is_author_column)
+    if not x:
+        return ''
+    x = x.find_next_sibling()
+    name_return = x.string
+    print(name_return)
+    return name_return
+
+def get_magazine_child(source):
+    doc = bs(source, "lxml")
+    x = doc.find(is_magazine_column)
+    if not x:
+        return ''
+    x = x.find_next_sibling()
+    print(x.string)
+    return x.string
+
 
 with open('sample_input.csv', 'r', encoding='gbk') as input_file:
-    wb = Workbook()
+
+    # read in every entry and do the work
     for x in input_file:
         x = x.split(',')
         name = x[0]
@@ -32,40 +71,67 @@ with open('sample_input.csv', 'r', encoding='gbk') as input_file:
         ref_year = []
         ref_num = []
 
+        page_number = 1
+
         while 1:
             results = driver.page_source
             doc = bs(results, 'lxml')
 
             # get the html of the button for jumping to next page
             next_page_button = doc.find(id='gsc_bpf_next')
-            print("next_page_button.attrs: " + str(next_page_button.attrs))
+            print("Page " + str(page_number) + " : " + str(next_page_button.attrs))
 
             x = doc.find_all("tr", class_="gsc_a_tr")
             len_x = len(x)
 
             for i in range(0, len_x):
+
+                # grab the title of the paper
                 paper_name_raw = x[i].find(class_="gsc_a_at")
                 paper_name_add = paper_name_raw.string
-                if not paper_name_too_long(paper_name_add):
-                    paper_name.append(paper_name_raw.string)
-                else:
-                    url_child = paper_name_raw.['href'][0]
+                paper_name.append(paper_name_add)
 
+                # grab the authors of the paper
                 paper_info_raw = x[i].find_all(class_="gs_gray")
-                paper_author.append(paper_info_raw[0].string)
+                paper_author_add = paper_info_raw[0].string
+                if not name_too_long(paper_author_add):
+                    paper_author.append(paper_author_add)
+                else:
+                    url_child = paper_name_raw.get('href')
+                    url_child = 'https://scholar.google.com' + url_child
+                    dr = webdriver.PhantomJS()
+                    dr.get(url_child)
+                    source_child = dr.page_source
+                    dr.quit()
+                    paper_author.append(get_author_child(source_child))
+
+                # grab the magazine of the paper
                 magazine_raw = paper_info_raw[1]
                 magazine_content = magazine_raw.contents
                 if len(magazine_content) == 0:
                     paper_magazine.append('')
                 else:
-                    paper_magazine.append(magazine_content[0].string)
+                    paper_magazine_add = magazine_content[0].string
+                    if not name_too_long(paper_magazine_add):
+                        paper_magazine.append(paper_magazine_add)
+                    else:
+                        url_child = paper_name_raw.get('href')
+                        url_child = 'https://scholar.google.com' + url_child
+                        dr = webdriver.PhantomJS()
+                        dr.get(url_child)
+                        source_child = dr.page_source
+                        dr.quit()
+                        paper_magazine.append(get_magazine_child(source_child))
 
+                # grab the reference number of the paper
                 paper_ref_raw = x[i].find_all(class_="gsc_a_c")
                 paper_ref_a = paper_ref_raw[0].contents[0].string
                 if paper_ref_a == '\xa0':
                     paper_ref.append('0')
                 else:
                     paper_ref.append(paper_ref_a)
+
+                # grab the pusblish year of the paper
                 paper_pubyear_raw = x[i].find_all(class_="gsc_a_y")
                 if paper_pubyear_raw[0].string == None:
                     paper_pubyear.append('')
@@ -85,6 +151,7 @@ with open('sample_input.csv', 'r', encoding='gbk') as input_file:
                 break
 
             driver.find_element_by_id('gsc_bpf_next').click()
+            page_number += 1
 
         print(paper_name)
         print(paper_author)
@@ -93,6 +160,8 @@ with open('sample_input.csv', 'r', encoding='gbk') as input_file:
         print(paper_pubyear)
         print(ref_year)
         print(ref_num)
+
+        wb = ldwb(filename='sample_output3.xlsx')
 
         ws = wb.create_sheet(title=name)
         ws.append(['文章标题','作者','发表出处','引用数','发表年份'])
@@ -111,34 +180,4 @@ with open('sample_input.csv', 'r', encoding='gbk') as input_file:
         ws_ref.append(ref_year)
         ws_ref.append(ref_num)
 
-    wb.save(filename='sample_output.xlsx')
-
-# 现在能从成功的从主页抓数据了
-# 下一阶段考虑深入到每一个文章页面去
-
-# f = open('xue.txt', 'w', encoding='utf-8')
-# re_len_before = 0
-# count = 0
-# # while 1:
-# #     # results = driver.page_source
-# #     # re_len = len(results)
-# #     # print(re_len)
-# #     # if (re_len_before != 0) & (re_len == re_len_before):
-# #     #     break
-# #     # re_len_before = re_len
-# #     count += 1
-# #     try:
-# #         inputBtn = driver.find_element_by_id('gsc_bpf_more').click()
-# #         driver.implicitly_wait(3)
-# #     except EnvironmentError:
-# #         break
-#
-# print(count)
-#
-# driver.implicitly_wait(10)
-# results = driver.page_source
-# f.write(results)
-
-# inputBtn.send_keys('bing xie')
-# driver.find_element_by_id('gs_hp_tsb').click()
-# driver.find_element_by_xpath('//*[@id="gs_ccl"]/div[2]/table/tbody/tr/td[2]/h4/a').click()
+        wb.save(filename='sample_output3.xlsx')
