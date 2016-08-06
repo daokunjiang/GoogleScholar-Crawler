@@ -37,7 +37,7 @@ def get_author_child(source):
         return ''
     x = x.find_next_sibling()
     name_return = x.string
-    print(name_return)
+#   print(name_return)
     return name_return
 
 def get_magazine_child(source):
@@ -46,7 +46,7 @@ def get_magazine_child(source):
     if not x:
         return ''
     x = x.find_next_sibling()
-    print(x.string)
+#   print(x.string)
     return x.string
 
 
@@ -153,13 +153,17 @@ with open('sample_input.csv', 'r', encoding='gbk') as input_file:
             driver.find_element_by_id('gsc_bpf_next').click()
             page_number += 1
 
-        print(paper_name)
-        print(paper_author)
-        print(paper_magazine)
-        print(paper_ref)
-        print(paper_pubyear)
-        print(ref_year)
-        print(ref_num)
+        # count_error = 0
+        # try:
+        #     print(paper_name)
+        #     print(paper_author)
+        #     print(paper_magazine)
+        #     print(paper_ref)
+        #     print(paper_pubyear)
+        #     print(ref_year)
+        #     print(ref_num)
+        # except:
+        #     count_error += 1
 
         wb = ldwb(filename='sample_output3.xlsx')
 
